@@ -1,0 +1,73 @@
+I want to create a custom skill called "data-usage-patterns-analysis" that will help 
+our team quickly analyze data usage and access patterns quickly for future projects. Create the data-usage-patterns-analysis skill in my global skills directory (~/.cortex/skills/) instead of the project-local directory.
+Proceed autonomously.
+
+NOTE: Access query_history through ssnowflake.account_usage schema. Also, currently ssnowflake.account_usage only has table and no views.
+
+The skill should:
+1. List the databases, schemas, tables and views accessible by the context role.
+2. If a database / schema / table / view is missing from the above list, then give appropriate grants to the role on those.
+3. Ask what all databases, schemas, tables and views need to be analyzed from the collective list of databases, schemas, tables and views as created in steps 1 & 2.
+4. Analyze if the role being used has required grants to access snowflake.account_usage and ssnowflake.account_usage schemas.
+5. If not, then give appropriate grants to the role.
+6. Analyze the ssnowflake.account_usage.query history for the time range entered by the user. 
+7. Come up with how much time range of data from each table, as confirmed in step 1, is being used in those queries.
+8. Come up with archival recommendation for each table of each schema based on analysis of data usage by queries for tables as well as views based on them. The output should contain the below columns and create a document link which can be opened to view entire output
+        a. total size of each table (in GB)
+		b. monthly storage cost of table (in $)
+        c. how much years of data is archivable (from and to)
+        d. size of data that can be archived (in GB)
+        e. percent of data that can be archived
+        f. monthly savings in storage cost upon archival (in $)
+        g. monthly savings in storage cost upon archival (in %)
+		h. yearly savings in storage cost upon archival (in $)
+        i. yearly savings in storage cost upon archival (in %)
+9. List what all tables, out of tables confirmed in step 1, can be made transient?
+10. Generate if this much data is archived, then what will be the monthly and yearly storage cost savings in dollars as well as %. Generate 3 different aggregations in this step:
+        - Aggregation for each schema : all columns for Step 8  except 'column c'
+        - Aggregation for each database : all columns for Step 8  except 'column c'
+        - Aggregation for all databases : all columns for Step 8  except 'column c'
+11. Produce presentation talking points in 5 slides where last slide should contain all 3 outputs from Step 10.
+
+
+Help me outline the workflow steps this skill should contain.
+
+Create the skill file structure in the skills/ directory. Proceed autonomously.
+
+skills/
+└── data-usage-patterns-analysis/
+    ├── SKILL.md
+    └── (any supporting files)
+
+The SKILL.md should follow best practices:
+- Proper frontmatter with name and description
+- Clear workflow steps
+- Stopping points for user input
+- Success criteria
+
+
+Use this prompt to have Cortex Code help write the skill:
+
+```
+Write the SKILL.md content for the data-usage-patterns-analysis skill. Include:
+
+## Frontmatter
+- name: data-usage-patterns-analysis  
+- description: Trigger phrases and when to use
+
+## Workflow Steps
+1. **Gather Requirements** - Check if the role has read privilege on ssnowflake.acount_usage schema
+2. **Grant Privilege to Role** - Give privilege to role
+3. **Create Semantic Model** - Build Cortex Analyst config
+4. **Generate Presentation Script** - Talking points and queries
+6. **Validation** - Ensure everything works
+
+## Stopping Points
+- After requirements gathering (confirm understanding)
+- After presentation script (approve before presenting)
+
+## Output
+What artifacts this skill produces
+- presentation script
+
+Keep it under 200 lines - skills should be concise.

@@ -1,0 +1,166 @@
+-- ============================================================================
+-- DATA USAGE PATTERNS ANALYSIS - PRESENTATION TALKING POINTS
+-- 5 Slides | Generated: 2026-03-26 | Account: mf90654
+-- ============================================================================
+
+-- ============================================================================
+-- SLIDE 1: EXECUTIVE SUMMARY
+-- ============================================================================
+-- 
+-- "Our analysis covered 140 tables and 280 views across 3 databases 
+-- (PROD_DATA, LDW, DELETED_TABLE) over the last 6 months of query history."
+--
+-- KEY METRICS:
+--   Total Storage Footprint:  382.69 GB across 140 tables
+--   Current Monthly Cost:     $14.95/month ($179.40/year) at $40/TB
+--   Potential Monthly Savings: $14.06/month (94.06%)
+--   Potential Yearly Savings:  $168.73/year (94.06%)
+--   Archivable Data:          359.96 GB out of 382.69 GB
+--
+-- "All tables contain ~12 years of data (2014-03-27 to 2026-03-24), but 
+-- queries only access data from the last 300 days to 7.9 years depending 
+-- on the table. This creates a significant archival opportunity."
+--
+-- "Two tables per schema (EBIKE_SIM_1 and EBIKE_SIM_2, 250M rows each) 
+-- were NOT queried at all in 6 months — these are immediate archival wins."
+
+
+-- ============================================================================
+-- SLIDE 2: USAGE HEATMAP & TIME-RANGE ANALYSIS
+-- ============================================================================
+--
+-- QUERY VOLUME (Last 6 Months):
+--   Total Queries:  ~4.52 million SELECT queries across all schemas
+--   Distinct Users: 1 (single user: ANKITHA)
+--   All query types: SELECT only
+--
+-- SCHEMA ACTIVITY:
+--   PROD_DATA.ANALYSIS:    648,103 queries | 1.62 PB bytes scanned
+--   PROD_DATA.STG:         647,141 queries | 1.62 PB bytes scanned
+--   LDW.VEH_DM:            646,494 queries | 1.62 PB bytes scanned
+--   PROD_DATA.DM:          645,755 queries | 1.61 PB bytes scanned
+--   PROD_DATA.WEBHOOKS:    645,669 queries | 1.61 PB bytes scanned
+--   DELETED_TABLE.PUB_DATA:644,940 queries | 1.61 PB bytes scanned
+--   LDW.RID_DM:            644,599 queries | 1.61 PB bytes scanned
+--
+-- DATA TIME-RANGE TIERS (based on query lookback analysis):
+--
+--  Tier 1 - EBIKE_SIM_1 & _2 (per schema):
+--    * 250M rows each, ~7.5 GB each
+--    * ZERO queries in 6 months -> 100% archivable
+--
+--  Tier 2 - EBIKE_SIM_3 & _4 (per schema):
+--    * 5M rows each, ~0.15 GB each
+--    * Max lookback: 2,900 days (~7.9 years) -> 33.82% archivable
+--
+--  Tier 3 - EBIKE_SIM_5 through _8 (per schema):
+--    * 30M rows each, ~0.89 GB each
+--    * Max lookback: 730 days (~2 years) -> 83.34% archivable
+--
+--  Tier 4 - EBIKE_SIM_9 through _20 (per schema):
+--    * 100M rows each, ~2.99 GB each
+--    * Max lookback: 300 days (~10 months) -> 93.15% archivable
+
+
+-- ============================================================================
+-- SLIDE 3: ARCHIVAL RECOMMENDATIONS
+-- ============================================================================
+--
+-- RECOMMENDATION SUMMARY (per schema, 7 schemas total):
+--
+--  ARCHIVE (Immediate) - EBIKE_SIM_1, EBIKE_SIM_2:
+--    * Not queried in 6 months | 250M rows each | ~7.5 GB each
+--    * 100% of data archivable per table
+--    * Total across all schemas: 7 schemas x 2 tables x 7.5 GB = 105 GB
+--
+--  ARCHIVE (Date-Based) - EBIKE_SIM_3 through _20:
+--    * Actively queried but only recent data used
+--    * Data older than max lookback window is archivable
+--    * Archivable ranges: 33.82% to 93.15% depending on table
+--
+-- VIEW DEPENDENCY WARNING:
+--   280 views (VW_L0, VW_L1, VW_L2, VW_L3 layered on each table) 
+--   depend on these base tables. Archiving will break view results
+--   for historical ranges. Views must be updated to filter on 
+--   EVENT_TIMESTAMP after archival.
+--
+-- RISK ASSESSMENT:
+--   * Low Risk: EBIKE_SIM_1 & _2 (not queried at all)
+--   * Medium Risk: EBIKE_SIM_9-20 (high archival %, but actively queried recent data)
+--   * Lower Risk: EBIKE_SIM_3-4 (long lookback means less data archivable)
+--
+-- Full detail report: Open /data_usage_patterns_analysis_report.sql
+
+
+-- ============================================================================
+-- SLIDE 4: TRANSIENT TABLE RECOMMENDATIONS
+-- ============================================================================
+--
+-- CANDIDATES: 20 tables in PROD_DATA.STG schema
+--   Criteria: "STG" naming convention indicates staging/ETL tables
+--   Current state: All IS_TRANSIENT = NO, FAILSAFE_BYTES = 0
+--
+-- WHAT CHANGES WITH TRANSIENT:
+--   * Time Travel: Reduced to 0-1 days (from default 1 day)
+--   * Fail-safe: Eliminated entirely (currently 7-day fail-safe)
+--   * Note: FAILSAFE_BYTES currently = 0 for all tables, so immediate
+--     savings are minimal, but going forward prevents fail-safe accumulation
+--
+-- COMPLIANCE CONSIDERATION:
+--   * Transient tables have NO fail-safe recovery period
+--   * Only appropriate for data that can be re-ingested from source
+--   * STG tables are typically ephemeral/re-loadable -> good candidates
+--
+-- CONVERSION APPROACH:
+--   CREATE OR REPLACE TRANSIENT TABLE PROD_DATA.STG.<table> 
+--   AS SELECT * FROM PROD_DATA.STG.<table>;
+--
+-- TOTAL STG SCHEMA SIZE: 54.67 GB (20 tables)
+
+
+-- ============================================================================
+-- SLIDE 5: COST SAVINGS SUMMARY (ALL 3 AGGREGATIONS FROM STEP 10)
+-- ============================================================================
+--
+-- Storage Rate: $40/TB/month (On-Demand pricing)
+--
+-- +---------------------------------------------------------------------------+
+-- | AGGREGATION 1: PER SCHEMA                                                |
+-- +---------------------------------------------------------------------------+
+-- | Database      | Schema     | Size(GB)| Mo Cost| Arch GB| Arch%  | Mo Sav | Mo Sav%| Yr Sav  | Yr Sav%|
+-- |---------------|------------|---------|--------|--------|--------|--------|--------|---------|--------|
+-- | DELETED_TABLE | PUBLIC_DATA|   54.67 |  $2.14 |  51.42 | 94.06% |  $2.01 | 94.06% |  $24.10 | 94.06% |
+-- | LDW           | RID_DM     |   54.67 |  $2.14 |  51.42 | 94.06% |  $2.01 | 94.06% |  $24.10 | 94.06% |
+-- | LDW           | VEH_DM     |   54.67 |  $2.14 |  51.42 | 94.06% |  $2.01 | 94.06% |  $24.10 | 94.06% |
+-- | PROD_DATA     | ANALYSIS   |   54.67 |  $2.14 |  51.42 | 94.06% |  $2.01 | 94.06% |  $24.10 | 94.06% |
+-- | PROD_DATA     | DM         |   54.67 |  $2.14 |  51.42 | 94.06% |  $2.01 | 94.06% |  $24.10 | 94.06% |
+-- | PROD_DATA     | STG        |   54.67 |  $2.14 |  51.42 | 94.06% |  $2.01 | 94.06% |  $24.10 | 94.06% |
+-- | PROD_DATA     | WEBHOOKS   |   54.67 |  $2.14 |  51.42 | 94.06% |  $2.01 | 94.06% |  $24.10 | 94.06% |
+-- +---------------------------------------------------------------------------+
+--
+-- +---------------------------------------------------------------------------+
+-- | AGGREGATION 2: PER DATABASE                                              |
+-- +---------------------------------------------------------------------------+
+-- | Database      | Size(GB)| Mo Cost | Arch GB | Arch%  | Mo Sav | Mo Sav%| Yr Sav  | Yr Sav%|
+-- |---------------|---------|---------|---------|--------|--------|--------|---------|--------|
+-- | DELETED_TABLE |   54.67 |   $2.14 |   51.42 | 94.06% |  $2.01 | 94.06% |  $24.10 | 94.06% |
+-- | LDW           |  109.34 |   $4.27 |  102.84 | 94.06% |  $4.02 | 94.06% |  $48.21 | 94.06% |
+-- | PROD_DATA     |  218.68 |   $8.54 |  205.69 | 94.06% |  $8.03 | 94.06% |  $96.42 | 94.06% |
+-- +---------------------------------------------------------------------------+
+--
+-- +---------------------------------------------------------------------------+
+-- | AGGREGATION 3: GRAND TOTAL (ALL DATABASES)                               |
+-- +---------------------------------------------------------------------------+
+-- | Total Size | Mo Cost | Arch GB | Arch%  | Mo Savings | Mo Sav%| Yr Savings| Yr Sav%|
+-- |------------|---------|---------|--------|------------|--------|-----------|--------|
+-- |  382.69 GB |  $14.95 | 359.96  | 94.06% |     $14.06 | 94.06% |   $168.73 | 94.06% |
+-- +---------------------------------------------------------------------------+
+--
+-- KEY TAKEAWAY:
+--   "By archiving data older than query access patterns require, we can 
+--   reduce storage costs by 94% — saving $14.06/month ($168.73/year).
+--   The largest opportunity is in PROD_DATA ($96.42/year savings) which 
+--   holds 57% of total storage across 4 schemas."
+--
+--   "Additionally, converting 20 PROD_DATA.STG tables to transient will 
+--   prevent future fail-safe storage accumulation."
